@@ -2,9 +2,9 @@
 CONFIDENTIAL-COMMITMENT TOKEN
 
 Balances are stored as multiplicative commitments C.
-On-chain enforces ONLY algebraic conservation:
-  - C_sender_old == C_sender_new * C_amount
-  - C_receiver_new == C_receiver_old * C_amount
+Not ZK-sound: there are no on-chain range/knowledge proofs. A malicious client could craft algebra-consistent but nonsensical “amounts.” This is by design.
+Linkability remains: address graph is public; per-address commitment updates are linkable over time. We get hidden numbers, not hidden relationships.
+Group assumptions: we’re using big-int modular exponents as opaque commitments; this is obfuscation, not a formally vetted Pedersen over a prime-order EC group.
 
 Public total_supply is maintained.
 """
