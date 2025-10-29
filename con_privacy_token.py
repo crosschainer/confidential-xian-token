@@ -15,10 +15,6 @@ Public total_supply is maintained.
 
 p = 2**255 - 19  # modulus for modular arithmetic (big prime)
 
-def domain_hash(*parts):
-    s = "|".join(str(x) for x in parts)
-    return hashlib.sha3("XCTOK:v2|" + s)
-
 def map_to_base(tag: str):
     # Derive a base in [2, p-2] from sha3(tag)
     return int(hashlib.sha3("XCTOK:gen:" + tag)[:32], 16) % (p - 3) + 2
@@ -80,33 +76,45 @@ nonces = Hash()
 next_tx_id = Variable()
 
 # Events
-ConfidentialTransferEvent = LogEvent('ConfidentialTransfer', {
-    'from': {'type': str, 'idx': True},
-    'to': {'type': str, 'idx': True},
-    'amount_commitment': {'type': str},
-    'tx_id': {'type': int, 'idx': True}
-})
+ConfidentialTransferEvent = LogEvent(
+    event='ConfidentialTransfer',
+    params={
+        'from': {'type': str, 'idx': True},
+        'to': {'type': str, 'idx': True},
+        'amount_commitment': {'type': str},
+        'tx_id': {'type': int, 'idx': True}
+    }
+)
 
-ConfidentialApproveEvent = LogEvent('ConfidentialApprove', {
-    'owner': {'type': str, 'idx': True},
-    'spender': {'type': str, 'idx': True},
-    'allowance_commitment': {'type': str},
-    'tx_id': {'type': int, 'idx': True}
-})
+ConfidentialApproveEvent = LogEvent(
+    event='ConfidentialApprove',
+    params={
+        'owner': {'type': str, 'idx': True},
+        'spender': {'type': str, 'idx': True},
+        'allowance_commitment': {'type': str},
+        'tx_id': {'type': int, 'idx': True}
+    }
+)
 
-MintCommitmentEvent = LogEvent('MintCommitment', {
-    'to': {'type': str, 'idx': True},
-    'amount': {'type': float},
-    'amount_commitment': {'type': str},
-    'tx_id': {'type': int, 'idx': True}
-})
+MintCommitmentEvent = LogEvent(
+    event='MintCommitment',
+    params={
+        'to': {'type': str, 'idx': True},
+        'amount': {'type': str},
+        'amount_commitment': {'type': str},
+        'tx_id': {'type': int, 'idx': True}
+    }
+)
 
-BurnCommitmentEvent = LogEvent('BurnCommitment', {
-    'from': {'type': str, 'idx': True},
-    'amount': {'type': float},
-    'amount_commitment': {'type': str},
-    'tx_id': {'type': int, 'idx': True}
-})
+BurnCommitmentEvent = LogEvent(
+    event='BurnCommitment',
+    params={
+        'from': {'type': str, 'idx': True},
+        'amount': {'type': str},
+        'amount_commitment': {'type': str},
+        'tx_id': {'type': int, 'idx': True}
+    }
+)
 
 # -----------------------------------------------------------------------------
 # Construction
@@ -119,7 +127,7 @@ def seed():
     metadata['operator'] = ctx.caller
 
     # Public supply
-    metadata['total_supply'] = 0.0
+    metadata['total_supply'] = decimal('0')
 
     # Supply commitment tracks product of all commitments (algebraic conservation)
     metadata['supply_commitment'] = ZERO_COMMITMENT
@@ -346,14 +354,18 @@ def mint(to: str,
     }
 
     # Update public supply and supply commitment
-    metadata['total_supply'] = (metadata['total_supply'] or 0.0) + float(amount)
+    current_supply = metadata['total_supply']
+    if current_supply is None:
+        current_supply = decimal('0')
+    dec_amount = decimal(str(amount)) if isinstance(amount, (int, float)) else amount
+    metadata['total_supply'] = current_supply + dec_amount
     supply_cmt = metadata['supply_commitment'] or ZERO_COMMITMENT
     metadata['supply_commitment'] = (supply_cmt * amount_commitment) % p
 
     tx_id = next_tx()
     MintCommitmentEvent({
         'to': to,
-        'amount': float(amount),
+        'amount': str(dec_amount),
         'amount_commitment': hex(amount_commitment),
         'tx_id': tx_id
     })
@@ -385,7 +397,11 @@ def burn(from_address: str,
     }
 
     # Update public supply and supply commitment (multiply by inverse of C_amount)
-    metadata['total_supply'] = (metadata['total_supply'] or 0.0) - float(amount)
+    current_supply = metadata['total_supply']
+    if current_supply is None:
+        current_supply = decimal('0')
+    dec_amount = decimal(str(amount)) if isinstance(amount, (int, float)) else amount
+    metadata['total_supply'] = current_supply - dec_amount
     supply_cmt = metadata['supply_commitment'] or ZERO_COMMITMENT
     inv = mod_inverse(amount_commitment % p, p)
     metadata['supply_commitment'] = (supply_cmt * inv) % p
@@ -393,7 +409,7 @@ def burn(from_address: str,
     tx_id = next_tx()
     BurnCommitmentEvent({
         'from': from_address,
-        'amount': float(amount),
+        'amount': str(dec_amount),
         'amount_commitment': hex(amount_commitment),
         'tx_id': tx_id
     })
